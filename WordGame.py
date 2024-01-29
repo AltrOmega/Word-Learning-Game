@@ -16,8 +16,6 @@ GAME_HISTORY_PATH = "game_history.json"
 
 GAME_SAVES_PATH = "game_saves.json"
 
-TXT_DIR_PATH = "Saves"
-
 ############################# Basic file load func
 
 def save_data_to_json(data: dict, file_path: str):
@@ -38,14 +36,15 @@ def load_data_from_json(file_path: str):
     except Exception as e:
         return None
     
+
+
 def init_default(file_path: str, else_default):
     ld = load_data_from_json(file_path)
     if ld != None:
         return ld
     else:
         save_data_to_json(else_default, file_path)
-        return deepcopy(else_default)
-        
+        return deepcopy(else_default) 
 
 ############################# Settings
 
@@ -54,7 +53,6 @@ GENERAL_SETTINGS = {
     "settings_path": SETTINGS_PATH,
     "game_history_path": GAME_HISTORY_PATH,   
     "game_saves_path": GAME_SAVES_PATH,
-    "txt_dir_path": TXT_DIR_PATH,
     # Info
     "show_score": True,
     "show_mistake_count": True,
@@ -69,12 +67,16 @@ general_settings = init_default(GENERAL_SETTINGS_PATH, GENERAL_SETTINGS)
 settings_path = general_settings["settings_path"]
 game_history_path = general_settings["game_history_path"]
 game_saves_path = general_settings["game_saves_path"]
-txt_dir_path = general_settings["txt_dir_path"]
 
 class SideChoice(Enum):
     RANDOM = 0
     LEFT = 1
     RIGHT = 2
+
+def side_random_handle(side: SideChoice):
+    if side == SideChoice.RANDOM:
+        return choice([side.LEFT, side.RIGHT])
+    return side
 
 
 
@@ -141,21 +143,17 @@ def get_default_game_data():
 ############################# Lines
 
 class Line:
-    def __init__(self, left: str, right: str, side: SideChoice = SideChoice.RANDOM):
+    def __init__(self, left: str, right: str, side_answer: SideChoice = SideChoice.RANDOM):
         self.left = left
         self.right = right
+        self.side_answer = side_random_handle(side_answer)
         self.index:int = None
-
-        if side != None:
-            self.update_sides(side)
-
 
     def __str__(self):
         return f"{self.left} - {self.right}"
 
     def side_as_string(self, side: SideChoice = SideChoice.RANDOM, show_split:bool = True):
-        if side == SideChoice.RANDOM:
-            side = choice([side.LEFT, side.RIGHT])
+        side = side_random_handle(side)
 
         if side == SideChoice.LEFT:
             ret =  f"{self.left}"
@@ -165,17 +163,6 @@ class Line:
         ret =  f"{self.right}"
         ret = general_settings["split"] + ret if show_split == True else ret
         return ret
-
-    def update_sides(self, side: SideChoice = SideChoice.RANDOM):
-        if side == SideChoice.RANDOM:
-            side = choice([SideChoice.LEFT, SideChoice.RIGHT])
-
-        if side == SideChoice.LEFT:
-            self.correct_answer_side =  self.left
-            self.show_user_side = self.right
-        elif side == SideChoice.RIGHT:
-            self.correct_answer_side =  self.right
-            self.show_user_side = self.left
 
     def to_dict(self):
         return {
@@ -193,6 +180,7 @@ class Line:
         line.correct_answer_side = data["correct_answer_side"]
         line.show_user_side = data["show_user_side"]
         return line
+
 
 
 # TODO: Add error handling? Add Whitelist. Change the defaults to work with settings
@@ -213,6 +201,7 @@ blacklist = [], comment = "#", split_ = " - ", side = SideChoice.RANDOM) -> List
                 append_line.index = index
                 lines.append(append_line)
     return lines
+
 
 # TODO: Add error handling
 def load_files_on_dir(directory: str = "\\Saves", whitelist: list = [],
@@ -244,7 +233,6 @@ class GameEngine:
         self.time_length: float = game_data["time_length"]
         self.mistake_count: int = game_data["mistake_count"]
         self.current_line: int = game_data["current_line"]
-        #self.repeating_lines: List[int] = game_data["repeating_lines"]
         self.remaining_lines: List[Line] = game_data["remaining_lines"]
         self.original_lines_len = len(self.remaining_lines)
         self.settings = game_data["settings"]
@@ -269,13 +257,13 @@ class GameEngine:
             return False
         else: return True
 
-
     def _step_forward(self):
         self.current_line += 1
         self.remaining_lines.pop(0)
         # False = End of game
         # True = Game is ongoing
         return self.len_check()
+    
     def _mistake(self):
         self.mistake_count += 1
         if self.settings["only_once"] == False:
@@ -283,6 +271,7 @@ class GameEngine:
 
     def get_curent_line(self):
         return self.remaining_lines[0]
+    
     def get_lines_len(self):
             return len(self.remaining_lines)
     
@@ -293,17 +282,17 @@ class GameEngine:
         return self._step_forward()
 
     def progress_game_typing_mode(self, user_input = ""):
-        correct_answer_side: str = self.get_curent_line().correct_answer_side
-        #show_user_side: str = self.remaining_lines[self.current_line].show_user_side
+        line_current = self.get_curent_line()
+        side_answer: str = line_current.side_as_string(line_current.side_answer, False)
 
         if self.settings["case_senstive"] == False:
-            correct_answer_side = correct_answer_side.lower()
+            side_answer = side_answer.lower()
             user_input = user_input.lower()
         if self.settings["white_space_senstive"] == False:
-            correct_answer_side = ''.join(correct_answer_side.split())
+            side_answer = ''.join(side_answer.split())
             user_input = ''.join(user_input.split())
 
-        return self._answer_handle(user_input, correct_answer_side)
+        return self._answer_handle(user_input, side_answer)
 
     def progress_game_simple_mode(self, user_input = ""):
         return self._answer_handle(user_input, "")
@@ -319,10 +308,6 @@ class GameMaster:
         self.game_data_list = load_game_data_list(game_saves_path)
         self.game_id = None
         self.game_engine: GameEngine
-        # False = game not running
-        # True = game ongoing
-        # "repeat" = game restarts to use the repeating_lines as remaining_lines
-        # then runs normaly
         self.game_state = False
 
     def new_game_from_data(self, game_data: dict):
@@ -449,87 +434,31 @@ if __name__ == "__main__":
         ret = None if ret == "" else ret
         return ret
 
-    restart_folder_path = TXT_DIR_PATH
+    restart_folder_path = ""
     restart_whitelist = []
     restart_blacklist = []
 
     gm = GameMaster(game_saves_path)
     def start_game(folder_path:str, whitelist:list, blacklist:list):
-        gm.new_game(load_files_on_dir(restart_folder_path,
+        if folder_path == "": raise ValueError("folder_path empty")
+        restart_folder_path = folder_path
+        gm.new_game(load_files_on_dir(folder_path,
                                       whitelist=restart_whitelist, 
                                       blacklist=restart_blacklist))
         gen = gm.game_engine
         return gen
-    
-    gen = start_game(restart_folder_path, restart_whitelist, restart_blacklist)
 
     show_cmd = True
     game_is_running = True
     while game_is_running == True:
-        if gm.game_state == True and show_cmd == False:
-            if gen.settings["typing_mode"] == False:
-                gi = get_info()
-                if gi != None:
-                    print(f"Info: {gi}")
-
-                side = SideChoice(gen.settings["from_side"])
-                if side == SideChoice.RANDOM:
-                    side = choice([side.LEFT, side.RIGHT])
-
-                # we minght want to change the inner workings of 
-                # how sides are procesed overall
-                gen.get_curent_line().update_sides(side) # nie powinno samo sie updatować?
-                # It's to make sure the printed out string is not
-                # the answer one
-                if side == SideChoice.LEFT: side = SideChoice.RIGHT
-                else: side = SideChoice.LEFT
-
-                print(gen.get_curent_line().side_as_string(side), end="")
-                input()
-                print(gen.get_curent_line())
-                inp = input()
-                if ":cmd" in inp:
-                    show_cmd = True
-                    inp = inp.replace(":cmd", "")
-                system("cls")
-
-                gm.game_state = gen.progress_game_simple_mode(inp)
-                
-            else:   # typing mode == True
-                gi = get_info()
-                if gi != None:
-                    print(f"Info: {gi}")
-
-                side = SideChoice(gen.settings["from_side"])
-                if side == SideChoice.RANDOM:
-                    side = choice([side.LEFT, side.RIGHT])
-
-                # we might want to change the inner workings of 
-                # how sides are procesed overall
-                gen.get_curent_line().update_sides(side)
-                # It's to make sure the printed out string is not
-                # the answer one
-                if side == SideChoice.LEFT: side = SideChoice.RIGHT
-                else: side = SideChoice.LEFT
-
-                print(gen.get_curent_line().side_as_string(side, False)
-                      + general_settings["split"], end="")
-                inp = input()
-                print(gen.get_curent_line())
-                cmd_ = input()
-                if cmd_ == ":cmd":
-                    show_cmd = True
-                system("cls")
-                gm.game_state = gen.progress_game_typing_mode(inp)
-            
         if show_cmd == True or gm.game_state == False:
-            if gen.current_line > 0:
+            '''if gen.current_line > 0:
                 print(f"Info: {get_info()}")
-
-            user_input = input("Enter command:")
+            '''
+            user_input = input("Enter command: ")
             args = parse_commands(user_input)
 
-            if args.command == '/game':
+            if args.command == 'game':
                 restart_folder_path = args.folder_path
                 restart_whitelist = args.whitelist
                 restart_blacklist = args.blacklist
@@ -538,24 +467,65 @@ if __name__ == "__main__":
                 gen = gm.game_engine
                 show_cmd = False
                 game_is_running = True
-            if args.command == "/history":
+            if args.command == "history":
                 pass
-            if args.command == '/load':
+            if args.command == 'load':
                 gm.load_game_with_id(int(args.id))
-            if args.command == '/save':
+            if args.command == 'save':
                 gm.save_game_data_list(args.file_path)
-            if args.command == '/exit':
+            if args.command == 'exit':
                 game_is_running = False
-            if args.command == '/restart':
+            if args.command == 'restart':
                 system("cls")
                 gen = start_game(restart_folder_path, restart_whitelist, restart_blacklist)
                 gen = gm.game_engine
                 show_cmd = False
                 game_is_running = True
-            if args.command == '/continue':
+            if args.command == 'continue':
                 show_cmd = False
                 system("cls")
 
+        if gm.game_state == True and show_cmd == False:
+            gi = get_info()
+            if gi != None:
+                print(f"Info: {gi}")
+
+            # will need to put this in cmd
+            from_side = SideChoice(gen.settings["from_side"])
+            typing_mode = gen.settings["typing_mode"]
+            split = general_settings["split"]
+
+            side_answer = side_random_handle(from_side)
+            line_current = gen.get_curent_line()
+            line_current.side_answer = side_answer
+
+            if side_answer == SideChoice.LEFT:
+                side_show = SideChoice.RIGHT
+            else: side_show = SideChoice.LEFT
+
+            if typing_mode == False:
+                print(line_current.side_as_string(side_show), end = "")
+                input()
+                print(line_current)
+                inp = input()
+                if ":cmd" in inp:
+                    show_cmd = True
+                    inp = inp.replace(":cmd", "")
+                system("cls")
+
+                gm.game_state = gen.progress_game_simple_mode(inp)
+
+            else:   # typing mode == True
+                print(gen.get_curent_line().side_as_string(side_show, False)
+                      + general_settings["split"], end = "")
+                inp = input()
+                print(gen.get_curent_line())
+                cmd_ = input()
+                if cmd_ == ":cmd":
+                    show_cmd = True
+                system("cls")
+                gm.game_state = gen.progress_game_typing_mode(inp)
+            
 ############################# TODO:
 #   Add learning "mode"
 #
