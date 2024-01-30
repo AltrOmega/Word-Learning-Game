@@ -465,15 +465,15 @@ if __name__ == "__main__":
                                       blacklist=restart_blacklist))
         gen = gm.game_engine
         return gen
+    gen = None
 
     show_cmd = True
     game_is_running = True
     while game_is_running == True:
         if show_cmd == True or gm.game_state == False:
-            # TODO: make it so info apears after enering cmd from game
-            '''if gen.current_line > 0:
+            if gen != None and gen.current_line > 0:
                 print(f"Info: {get_info()}")
-            '''
+            
             user_input = input("Enter command: ")
             args = parse_commands(user_input)
 
