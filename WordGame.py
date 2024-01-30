@@ -186,15 +186,34 @@ class Line:
 # TODO: Add error handling? Add Whitelist. Change the defaults to work with settings
 # but not necesairly here
 def raw_lines_to_line_list(raw_lines: List[str], 
-blacklist = [], comment = "#", split_ = " - ", side = SideChoice.RANDOM) -> List[Line]:
+blacklist = [], comment = "#", multi_line_comment = '"""',
+split_ = " - ", side = SideChoice.RANDOM) -> List[Line]:
     lines = list()
+    inside_ml_com = False
     for index, line in enumerate(raw_lines, start=1):
         if index not in blacklist:
 
+            to_remove = None
+            while multi_line_comment in line:
+                start_index = line.find(multi_line_comment)
+
+                if inside_ml_com:
+                    to_remove = line[:start_index + len(multi_line_comment)]
+                    inside_ml_com = False
+                elif (end_index := line.find(multi_line_comment,
+                start_index + len(multi_line_comment))) != -1:
+                    to_remove = line[start_index:end_index + len(multi_line_comment)]
+                else:
+                    to_remove = line[start_index:]
+                    inside_ml_com = True
+
+                if to_remove is not None:
+                    line = line.replace(to_remove, '', 1)
+                    to_remove = None
+
             if comment in line:
-                if line.index(comment) == 0:
-                    continue
                 line = line[:line.index(comment)]
+
             if split_ in line:
                 left, right = line.strip().split(split_)
                 append_line = Line(left, right, side)
@@ -398,7 +417,6 @@ if __name__ == "__main__":
 
         game_parser = subparsers.add_parser('game', help='Start a new game')
         game_parser.add_argument('folder_path', type=str, help='', nargs='?', default='')
-        #game_parser.add_argument('file_name', type=str, help='', nargs='?', default='')
         game_parser.add_argument('-w', '--whitelist', type=str, nargs='+', help='Whitelisted files', default=[])
         game_parser.add_argument('-b', '--blacklist', type=str, nargs='+', help='Blacklisted files', default=[])
 
@@ -452,6 +470,7 @@ if __name__ == "__main__":
     game_is_running = True
     while game_is_running == True:
         if show_cmd == True or gm.game_state == False:
+            # TODO: make it so info apears after enering cmd from game
             '''if gen.current_line > 0:
                 print(f"Info: {get_info()}")
             '''
@@ -529,7 +548,8 @@ if __name__ == "__main__":
 ############################# TODO:
 #   Add learning "mode"
 #
-#   case_senstive is broken?
+#   Add a reload function that does what restart but
+#   loads from the file insted
 #
 #   add a multi line coment capability
 #
