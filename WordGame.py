@@ -16,7 +16,7 @@ GAME_HISTORY_PATH = "game_history.json"
 
 GAME_SAVES_PATH = "game_saves.json"
 
-############################# Basic file load func
+############################# Basic file save/load handling
 
 def save_data_to_json(data: dict, file_path: str):
     try:
@@ -57,6 +57,7 @@ GENERAL_SETTINGS = {
     "show_score": True,
     "show_mistake_count": True,
     "show_position": True,
+    "no_cls": True,
     # Afixes
     "split": " - ",
     "comment": "#"
@@ -404,112 +405,145 @@ def get_score_percent(mistake_count: int, total_len: int, round_to: int = None) 
     
     return percent
 
-############################# Commands
+def get_info():
+    ret = ""
+    sp = general_settings["show_score"]
+    smc = general_settings["show_mistake_count"]
+    if sp == True:
+        adjust = gen.mistake_count if gen.settings["only_once"] == False else 0
+        ret += f"""{gen.current_line}/{gen.original_lines_len+adjust}"""
+    if sp and smc:
+        ret += " - "
+    if smc == True:
+        ret += f"""{gen.mistake_count}/{
+            get_score_percent(gen.mistake_count, gen.current_line, 2)}%"""
     
+    ret = None if ret == "" else ret
+    return ret
+
+def start_game(folder_path:str, whitelist:list, blacklist:list):
+    if folder_path == "": raise ValueError("folder_path empty") #huh? why
+    gm.new_game(load_files_on_dir(folder_path, whitelist, blacklist))
+    gen = gm.game_engine
+    return gen
+
+############################# Commands and Game loop
 if __name__ == "__main__":
-    import argparse
+    import click
+########## Commands
 
-    def parse_commands(input:str):
-        parser = argparse.ArgumentParser(description='Game Commands')
-        subparsers = parser.add_subparsers(dest='command')
+    @click.group()
+    def cli():
+        pass
 
-        exit_parser = subparsers.add_parser('exit', help='Exit the game')
+    @cli.command()
+    def exit():
+        """Exit the game."""
+        global game_is_running
+        game_is_running = False
 
-        game_parser = subparsers.add_parser('game', help='Start a new game')
-        game_parser.add_argument('folder_path', type=str, help='', nargs='?', default='')
-        game_parser.add_argument('-w', '--whitelist', type=str, nargs='+', help='Whitelisted files', default=[])
-        game_parser.add_argument('-b', '--blacklist', type=str, nargs='+', help='Blacklisted files', default=[])
+    @cli.command()
+    @click.argument('folder_path', type=str, required=False, default='')
+    @click.option('-w', '--whitelist', type=str, multiple=True, default=[])
+    @click.option('-b', '--blacklist', type=str, multiple=True, default=[])
+    def game(folder_path, whitelist, blacklist):
+        """Start a new game."""
+        if general_settings["no_cls"] == False: system("cls")
 
+        global gen, show_cmd, restart_folder_path,\
+        restart_whitelist, restart_blacklist
 
-        load_parser = subparsers.add_parser('load', help='')
-        load_parser.add_argument('id', type=str, help='', nargs='?', default='0')
+        restart_folder_path = folder_path
+        restart_whitelist = whitelist
+        restart_blacklist = blacklist
 
-        save_parser = subparsers.add_parser('save', help='')
-        save_parser.add_argument('file_path', type=str, help='', nargs='?',
-                                    default='game_history.json')
+        gen = start_game(folder_path, whitelist, blacklist)
+        show_cmd = False
+
+    @cli.command()
+    @click.argument('id', type=str, default='0')
+    def load(id):
+        """Load a game."""
+        click.echo(f"Loading game with ID: {id}")
+        gm.load_game_with_id(int(id))
+
+    @cli.command()
+    @click.argument('file_path', type=str, default='game_history.json')
+    def save(file_path):
+        """Save the game."""
+        click.echo(f"Saving game to {file_path}")
+        gm.save_game_data_list(file_path)
+
+    @cli.command()
+    def history():
+        """Show game history."""
+        click.echo("Showing game history.")
+        # History logic here
+
+    @cli.command()
+    def restart():
+        """Restart the game."""
+        if general_settings["no_cls"] == False: system("cls")
+        global gen, show_cmd
+        gen = start_game(restart_folder_path, restart_whitelist, restart_blacklist)
+        gen = gm.game_engine
+        show_cmd = False
         
-        history_parcer = subparsers.add_parser('history', help='')
+    @cli.command(name='continue')
+    def continue_game():
+        """Continue the game."""
+        global show_cmd
+        show_cmd = False
 
-        continue_parser = subparsers.add_parser('continue', help='')
+    '''
+    @cli.command()
+    def help():
+        """help"""
+        ctx = click.get_current_context()
+        click.echo(ctx.get_help())
+        ctx.exit()
+    '''
 
-        restart_parser = subparsers.add_parser('restart', help='')
+########## Game loop
+    # Using global variables becuse click has a bug that makes it
+    # imposible to change varables in scope despite being able to read them
+    # TODO: if posible get rid of them in the future
 
-        return parser.parse_args(shlex.split(input))
-    
-    def get_info():
-        ret = ""
-        sp = general_settings["show_score"]
-        smc = general_settings["show_mistake_count"]
-        if sp == True:
-            adjust = gen.mistake_count if gen.settings["only_once"] == False else 0
-            ret += f"""{gen.current_line}/{gen.original_lines_len+adjust}"""
-        if sp and smc:
-            ret += " - "
-        if smc == True:
-            ret += f"""{gen.mistake_count}/{
-                get_score_percent(gen.mistake_count, gen.current_line, 2)}%"""
-        
-        ret = None if ret == "" else ret
-        return ret
+    global gen, show_cmd, game_is_running, restart_folder_path,\
+    restart_whitelist, restart_blacklist, gm
+
+    gen: GameEngine = None
+    show_cmd = True
+    game_is_running = True
 
     restart_folder_path = ""
     restart_whitelist = []
     restart_blacklist = []
 
     gm = GameMaster(game_saves_path)
-    def start_game(folder_path:str, whitelist:list, blacklist:list):
-        if folder_path == "": raise ValueError("folder_path empty")
-        restart_folder_path = folder_path
-        gm.new_game(load_files_on_dir(folder_path,
-                                      whitelist=restart_whitelist, 
-                                      blacklist=restart_blacklist))
-        gen = gm.game_engine
-        return gen
-    gen = None
 
-    show_cmd = True
-    game_is_running = True
     while game_is_running == True:
         if show_cmd == True or gm.game_state == False:
+            
             if gen != None and gen.current_line > 0:
                 print(f"Info: {get_info()}")
+            user_input = input("Enter command: ").split()
+            if general_settings["no_cls"] == False: system("cls") 
+            try:
+                cli(user_input, standalone_mode=False)
+            except Exception as e:
+                print(e)
+            print()
             
-            user_input = input("Enter command: ")
-            args = parse_commands(user_input)
 
-            if args.command == 'game':
-                restart_folder_path = args.folder_path
-                restart_whitelist = args.whitelist
-                restart_blacklist = args.blacklist
-                system("cls")
-                gen = start_game(restart_folder_path, restart_whitelist, restart_blacklist)
-                gen = gm.game_engine
-                show_cmd = False
-                game_is_running = True
-            if args.command == "history":
-                pass
-            if args.command == 'load':
-                gm.load_game_with_id(int(args.id))
-            if args.command == 'save':
-                gm.save_game_data_list(args.file_path)
-            if args.command == 'exit':
-                game_is_running = False
-            if args.command == 'restart':
-                system("cls")
-                gen = start_game(restart_folder_path, restart_whitelist, restart_blacklist)
-                gen = gm.game_engine
-                show_cmd = False
-                game_is_running = True
-            if args.command == 'continue':
-                show_cmd = False
-                system("cls")
-
-        if gm.game_state == True and show_cmd == False:
+        elif gm.game_state == True and show_cmd == False:
+            if general_settings["no_cls"] == False: system("cls")
             gi = get_info()
             if gi != None:
                 print(f"Info: {gi}")
 
-            # will need to put this in cmd
+            # Doing this to make it easier to acces options
+            # since options won't change while in the game
             from_side = SideChoice(gen.settings["from_side"])
             typing_mode = gen.settings["typing_mode"]
             split = general_settings["split"]
@@ -530,7 +564,7 @@ if __name__ == "__main__":
                 if ":cmd" in inp:
                     show_cmd = True
                     inp = inp.replace(":cmd", "")
-                system("cls")
+                    if general_settings["no_cls"] == False: system("cls")
 
                 gm.game_state = gen.progress_game_simple_mode(inp)
 
@@ -542,16 +576,17 @@ if __name__ == "__main__":
                 cmd_ = input()
                 if cmd_ == ":cmd":
                     show_cmd = True
-                system("cls")
+                    if general_settings["no_cls"] == False: system("cls")
                 gm.game_state = gen.progress_game_typing_mode(inp)
             
 ############################# TODO:
+#
+#   make settings take one file and not two
+#
 #   Add learning "mode"
 #
 #   Add a reload function that does what restart but
 #   loads from the file insted
-#
-#   add a multi line coment capability
 #
 #   show_position and show_score settings got mixed up, fix em and implement
 #       the one that is not currenlty working yet
@@ -564,12 +599,6 @@ if __name__ == "__main__":
 #       repair the saving mechanisms we broke when redoing some code
 #       make the game savable no matter whats happening
 #
+#   add a no_cls option
+#
 #   re-clean the code when we finish doing all the features
-#       make the logger easier to use
-#       refine the full loging capbilities
-
-
-
-### when we finish this remember to have a more comperhensive
-#       plan of how things should work before doing
-#       any coding
