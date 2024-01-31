@@ -6,15 +6,12 @@ from os.path import join
 from random import choice, shuffle
 from typing import List
 import json
-import shlex
 
-GENERAL_SETTINGS_PATH = "general_settings.json"
+DEFAULT_SETTINGS_PATH = "settings.json"
 
-SETTINGS_PATH = "settings.json"
+DEFAULT_GAME_HISTORY_PATH = "game_history.json"
 
-GAME_HISTORY_PATH = "game_history.json"
-
-GAME_SAVES_PATH = "game_saves.json"
+DEFAULT_GAME_SAVES_PATH = "game_saves.json"
 
 ############################# Basic file save/load handling
 
@@ -48,27 +45,6 @@ def init_default(file_path: str, else_default):
 
 ############################# Settings
 
-GENERAL_SETTINGS = {
-    # Default variables
-    "settings_path": SETTINGS_PATH,
-    "game_history_path": GAME_HISTORY_PATH,   
-    "game_saves_path": GAME_SAVES_PATH,
-    # Info
-    "show_score": True,
-    "show_mistake_count": True,
-    "show_position": True,
-    "no_cls": True,
-    # Afixes
-    "split": " - ",
-    "comment": "#"
-}
-
-general_settings = init_default(GENERAL_SETTINGS_PATH, GENERAL_SETTINGS)
-
-settings_path = general_settings["settings_path"]
-game_history_path = general_settings["game_history_path"]
-game_saves_path = general_settings["game_saves_path"]
-
 class SideChoice(Enum):
     RANDOM = 0
     LEFT = 1
@@ -81,20 +57,26 @@ def side_random_handle(side: SideChoice):
 
 
 
-GAME_SETTINGS = {
-    # Typing mode specific
-    "typing_mode": False,
-    "case_senstive": False,
-    "white_space_senstive": False,
+DEFAULT_GAME_SETTINGS = {
     # General
     "only_once": True,
     "random_line": False,
     "from_side": SideChoice.RANDOM.value,
-    "line_whitelist": [],
-    "line_blacklist": []
+    # Typing mode specific
+    "typing_mode": False,
+    "case_senstive": False,
+    "white_space_senstive": False,
+    # Info
+    "show_score": True,
+    "show_mistake_count": True,
+    "show_position": True,
+    "no_cls": False,
+    # Afixes
+    "split": " - ",
+    "comment": "#"
 }
 
-default_settings = init_default(settings_path, GAME_SETTINGS)
+settings = init_default(DEFAULT_SETTINGS_PATH, DEFAULT_GAME_SETTINGS)
 
 ############################# Game data
 
@@ -105,7 +87,7 @@ GAME_DATA = {
     "current_line": 0,
     "repeating_lines": [],
     "remaining_lines": [],
-    "settings": default_settings
+    "settings": settings
 }
 
 
@@ -158,11 +140,11 @@ class Line:
 
         if side == SideChoice.LEFT:
             ret =  f"{self.left}"
-            ret += general_settings["split"] if show_split == True else ""
+            ret += settings["split"] if show_split == True else ""
             return ret
         #elif side == SideChoice.RIGHT:
         ret =  f"{self.right}"
-        ret = general_settings["split"] + ret if show_split == True else ret
+        ret = settings["split"] + ret if show_split == True else ret
         return ret
 
     def to_dict(self):
@@ -319,25 +301,18 @@ class GameEngine:
 
 ############################# Game history
 
-game_history = load_game_data_list(game_history_path)
+game_history = load_game_data_list(DEFAULT_GAME_HISTORY_PATH)
 
 ############################# Game Master
 
 class GameMaster:
-    def __init__(self, game_saves_path=GAME_SAVES_PATH):
+    def __init__(self, game_saves_path=DEFAULT_GAME_SAVES_PATH):
         self.game_data_list = load_game_data_list(game_saves_path)
         self.game_id = None
         self.game_engine: GameEngine
         self.game_state = False
 
     def new_game_from_data(self, game_data: dict):
-        white_set = set(game_data["settings"]["line_whitelist"])
-        black_set = set(game_data["settings"]["line_blacklist"])
-        all_set = white_set - black_set
-        if white_set - black_set != set([]):
-            rl = game_data["remaining_lines"]
-            rl = [rl[i] for i in all_set]
-            game_data["remaining_lines"] = rl
         ge = self.game_engine = GameEngine(game_data)
         return ge
 
@@ -407,8 +382,8 @@ def get_score_percent(mistake_count: int, total_len: int, round_to: int = None) 
 
 def get_info():
     ret = ""
-    sp = general_settings["show_score"]
-    smc = general_settings["show_mistake_count"]
+    sp = settings["show_score"]
+    smc = settings["show_mistake_count"]
     if sp == True:
         adjust = gen.mistake_count if gen.settings["only_once"] == False else 0
         ret += f"""{gen.current_line}/{gen.original_lines_len+adjust}"""
@@ -448,7 +423,7 @@ if __name__ == "__main__":
     @click.option('-b', '--blacklist', type=str, multiple=True, default=[])
     def game(folder_path, whitelist, blacklist):
         """Start a new game."""
-        if general_settings["no_cls"] == False: system("cls")
+        if settings["no_cls"] == False: system("cls")
 
         global gen, show_cmd, restart_folder_path,\
         restart_whitelist, restart_blacklist
@@ -483,7 +458,7 @@ if __name__ == "__main__":
     @cli.command()
     def restart():
         """Restart the game."""
-        if general_settings["no_cls"] == False: system("cls")
+        if settings["no_cls"] == False: system("cls")
         global gen, show_cmd
         gen = start_game(restart_folder_path, restart_whitelist, restart_blacklist)
         gen = gm.game_engine
@@ -520,7 +495,7 @@ if __name__ == "__main__":
     restart_whitelist = []
     restart_blacklist = []
 
-    gm = GameMaster(game_saves_path)
+    gm = GameMaster(DEFAULT_GAME_SAVES_PATH)
 
     while game_is_running == True:
         if show_cmd == True or gm.game_state == False:
@@ -528,7 +503,7 @@ if __name__ == "__main__":
             if gen != None and gen.current_line > 0:
                 print(f"Info: {get_info()}")
             user_input = input("Enter command: ").split()
-            if general_settings["no_cls"] == False: system("cls") 
+            if settings["no_cls"] == False: system("cls") 
             try:
                 cli(user_input, standalone_mode=False)
             except Exception as e:
@@ -537,7 +512,7 @@ if __name__ == "__main__":
             
 
         elif gm.game_state == True and show_cmd == False:
-            if general_settings["no_cls"] == False: system("cls")
+            if settings["no_cls"] == False: system("cls")
             gi = get_info()
             if gi != None:
                 print(f"Info: {gi}")
@@ -546,7 +521,7 @@ if __name__ == "__main__":
             # since options won't change while in the game
             from_side = SideChoice(gen.settings["from_side"])
             typing_mode = gen.settings["typing_mode"]
-            split = general_settings["split"]
+            split = settings["split"]
 
             side_answer = side_random_handle(from_side)
             line_current = gen.get_curent_line()
@@ -564,19 +539,19 @@ if __name__ == "__main__":
                 if ":cmd" in inp:
                     show_cmd = True
                     inp = inp.replace(":cmd", "")
-                    if general_settings["no_cls"] == False: system("cls")
+                    if settings["no_cls"] == False: system("cls")
 
                 gm.game_state = gen.progress_game_simple_mode(inp)
 
             else:   # typing mode == True
                 print(gen.get_curent_line().side_as_string(side_show, False)
-                      + general_settings["split"], end = "")
+                      + settings["split"], end = "")
                 inp = input()
                 print(gen.get_curent_line())
                 cmd_ = input()
                 if cmd_ == ":cmd":
                     show_cmd = True
-                    if general_settings["no_cls"] == False: system("cls")
+                    if settings["no_cls"] == False: system("cls")
                 gm.game_state = gen.progress_game_typing_mode(inp)
             
 ############################# TODO:
