@@ -426,7 +426,7 @@ if __name__ == "__main__":
     @click.group()
     def cli():
         # A temporary solution
-        # TODO: if posible get rid of them in the future
+        # TODO: if posible get rid of this global in the future
         global ctx
         ctx = click.get_current_context()
         pass
@@ -494,7 +494,7 @@ if __name__ == "__main__":
 
     @cli.command()
     def restart():
-        """Restart the game."""
+        """Restart the game reloading it from last used game files"""
         if settings["no_cls"] == False: system("cls")
         global gen, show_cmd
         gen = start_game(restart_folder_path, restart_whitelist, restart_blacklist)
@@ -507,7 +507,7 @@ if __name__ == "__main__":
         global show_cmd
         show_cmd = False
 
-    @cli.command() #TODO: Start working here
+    @cli.command()
     def help():
         """Does what you see, also try help command_name."""
         ctx.formatter_class
@@ -545,11 +545,10 @@ if __name__ == "__main__":
                 cli(user_input, standalone_mode=False)
             except Exception as e:
                 print(e)
-            print()
+            if ("game" not in user_input) and ("continue" not in user_input): print()
             
 
         elif gm.game_state == True and show_cmd == False:
-            if settings["no_cls"] == False: system("cls")
             gi = get_info()
             if gi != None:
                 print(f"Info: {gi}")
@@ -590,12 +589,11 @@ if __name__ == "__main__":
                     show_cmd = True
                     if settings["no_cls"] == False: system("cls")
                 gm.game_state = gen.progress_game_typing_mode(inp)
+
+            if settings["no_cls"] == False: system("cls")
             
 
 ############################# TODO:
-#
-#   make settings take one file and not two
-#
 #   Add learning "mode"
 #
 #   Add a reload function that does what restart but
