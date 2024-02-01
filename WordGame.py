@@ -13,7 +13,9 @@ DEFAULT_GAME_HISTORY_PATH = "game_history.json"
 
 DEFAULT_GAME_SAVES_PATH = "game_saves.json"
 
+
 ############################# Basic file save/load handling
+
 
 def save_data_to_json(data: dict, file_path: str):
     try:
@@ -42,6 +44,7 @@ def init_default(file_path: str, else_default):
     else:
         save_data_to_json(else_default, file_path)
         return deepcopy(else_default) 
+
 
 ############################# Settings
 
@@ -78,7 +81,9 @@ DEFAULT_GAME_SETTINGS = {
 
 settings = init_default(DEFAULT_SETTINGS_PATH, DEFAULT_GAME_SETTINGS)
 
+
 ############################# Game data
+
 
 GAME_DATA = {
     "begin_date_and_time": 0,
@@ -122,6 +127,7 @@ def load_game_data_list(file_path: str) -> List[dict]:
 
 def get_default_game_data():
     return deepcopy(GAME_DATA)
+
 
 ############################# Lines
 
@@ -224,6 +230,7 @@ def load_files_on_dir(directory: str = "\\Saves", whitelist: list = [],
 
     return file_list
 
+
 ############################# Game engine
 
 class GameEngine:
@@ -299,11 +306,15 @@ class GameEngine:
     def progress_game_simple_mode(self, user_input = ""):
         return self._answer_handle(user_input, "")
 
+
 ############################# Game history
+
 
 game_history = load_game_data_list(DEFAULT_GAME_HISTORY_PATH)
 
+
 ############################# Game Master
+
 
 class GameMaster:
     def __init__(self, game_saves_path=DEFAULT_GAME_SAVES_PATH):
@@ -353,7 +364,9 @@ class GameMaster:
         self.commit_game_auto()
         save_game_data_list(self.game_data_list, file_path)
 
+
 ############################# Other
+
 
 def get_score_percent(mistake_count: int, total_len: int, round_to: int = None) -> float:
     """
@@ -362,7 +375,8 @@ def get_score_percent(mistake_count: int, total_len: int, round_to: int = None) 
     Parameters:
     - mistake_count (int): The number of mistakes made.
     - total_len (int): The total number of items.
-    - round_to (int, optional): The number of decimal places to round the result to. Defaults to None.
+    - round_to (int, optional): The number of decimal places to round the result to.
+    Defaults to None.
     
     Returns:
     - float: The score as a percentage.
@@ -402,13 +416,19 @@ def start_game(folder_path:str, whitelist:list, blacklist:list):
     gen = gm.game_engine
     return gen
 
-############################# Commands and Game loop
+
+############################# Game loop
+
+
 if __name__ == "__main__":
     import click
-########## Commands
 
     @click.group()
     def cli():
+        # A temporary solution
+        # TODO: if posible get rid of them in the future
+        global ctx
+        ctx = click.get_current_context()
         pass
 
     @cli.command()
@@ -418,11 +438,29 @@ if __name__ == "__main__":
         game_is_running = False
 
     @cli.command()
-    @click.argument('folder_path', type=str, required=False, default='')
+    @click.argument('folder_path', type=str, required=True, default='')
     @click.option('-w', '--whitelist', type=str, multiple=True, default=[])
     @click.option('-b', '--blacklist', type=str, multiple=True, default=[])
     def game(folder_path, whitelist, blacklist):
-        """Start a new game."""
+        """Start a new game.\n
+        Ignore the usage displayd above, the actual way to use it like:\n
+        game folder_path\n
+        or\n
+        game folder_path option file_name_1\n
+        or\n
+        game folder_path option file_name_1 option file_name_2\n
+        \n
+        also options are not mandatory but folder_path is\n
+        \n
+        example:\n
+        game C:\Learning -w text.txt \n
+        \n
+        if you want more than one whitelisted file do:\n
+        game C:\Learning -w text_1.txt -w text_2.txt -w text_3.txt\n
+        \n
+        this also works but is a little pointless:\n
+        game C:\Learning -w text_1.txt -w text_2.txt -b text_3.txt"""
+
         if settings["no_cls"] == False: system("cls")
 
         global gen, show_cmd, restart_folder_path,\
@@ -438,22 +476,21 @@ if __name__ == "__main__":
     @cli.command()
     @click.argument('id', type=str, default='0')
     def load(id):
-        """Load a game."""
+        """Load a game, does not work yet."""
         click.echo(f"Loading game with ID: {id}")
         gm.load_game_with_id(int(id))
 
     @cli.command()
     @click.argument('file_path', type=str, default='game_history.json')
     def save(file_path):
-        """Save the game."""
+        """Save the game, does not work yet."""
         click.echo(f"Saving game to {file_path}")
         gm.save_game_data_list(file_path)
 
     @cli.command()
     def history():
-        """Show game history."""
+        """Show game history, does not work yet."""
         click.echo("Showing game history.")
-        # History logic here
 
     @cli.command()
     def restart():
@@ -470,16 +507,13 @@ if __name__ == "__main__":
         global show_cmd
         show_cmd = False
 
-    '''
-    @cli.command()
+    @cli.command() #TODO: Start working here
     def help():
-        """help"""
-        ctx = click.get_current_context()
+        """Does what you see, also try help command_name."""
+        ctx.formatter_class
         click.echo(ctx.get_help())
-        ctx.exit()
-    '''
 
-########## Game loop
+
     # Using global variables becuse click has a bug that makes it
     # imposible to change varables in scope despite being able to read them
     # TODO: if posible get rid of them in the future
@@ -502,7 +536,10 @@ if __name__ == "__main__":
             
             if gen != None and gen.current_line > 0:
                 print(f"Info: {get_info()}")
-            user_input = input("Enter command: ").split()
+            user_input: str = input("Enter command: ")
+            if user_input.startswith("help"):
+                user_input = user_input[4:] + " --help"
+            user_input = user_input.split()
             if settings["no_cls"] == False: system("cls") 
             try:
                 cli(user_input, standalone_mode=False)
@@ -554,6 +591,7 @@ if __name__ == "__main__":
                     if settings["no_cls"] == False: system("cls")
                 gm.game_state = gen.progress_game_typing_mode(inp)
             
+
 ############################# TODO:
 #
 #   make settings take one file and not two
