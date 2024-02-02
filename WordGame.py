@@ -48,6 +48,7 @@ def init_default(file_path: str, else_default):
 
 ############################# Settings
 
+
 class SideChoice(Enum):
     RANDOM = 0
     LEFT = 1
@@ -70,9 +71,9 @@ DEFAULT_GAME_SETTINGS = {
     "case_senstive": False,
     "white_space_senstive": False,
     # Info
-    "show_score": True,
-    "show_mistake_count": True,
     "show_position": True,
+    "show_mistake_count": True,
+    "show_score": True,
     "no_cls": False,
     # Afixes
     "split": " - ",
@@ -130,6 +131,7 @@ def get_default_game_data():
 
 
 ############################# Lines
+
 
 class Line:
     def __init__(self, left: str, right: str, side_answer: SideChoice = SideChoice.RANDOM):
@@ -232,6 +234,7 @@ def load_files_on_dir(directory: str = "\\Saves", whitelist: list = [],
 
 
 ############################# Game engine
+
 
 class GameEngine:
     def __init__(self, game_data: dict):
@@ -387,8 +390,8 @@ def get_score_percent(mistake_count: int, total_len: int, round_to: int = None) 
     if mistake_count == 0:
         return 100.0
     
-    percent = 100 * (total_len - mistake_count) / total_len
-    
+    percent = 100 * max(total_len - mistake_count, 0) / total_len
+
     if round_to is not None:
         return round(percent, round_to)
     
@@ -396,16 +399,19 @@ def get_score_percent(mistake_count: int, total_len: int, round_to: int = None) 
 
 def get_info():
     ret = ""
-    sp = settings["show_score"]
+    ss = settings["show_score"]
+    sp = settings["show_position"]
     smc = settings["show_mistake_count"]
     if sp == True:
         adjust = gen.mistake_count if gen.settings["only_once"] == False else 0
         ret += f"""{gen.current_line}/{gen.original_lines_len+adjust}"""
-    if sp and smc:
-        ret += " - "
     if smc == True:
-        ret += f"""{gen.mistake_count}/{
-            get_score_percent(gen.mistake_count, gen.current_line, 2)}%"""
+        if sp: ret += " - "
+        ret += f"{gen.mistake_count}"
+    if ss == True:
+        if sp or smc: ret += " - "
+        sp_string = f"{get_score_percent(gen.mistake_count, gen.original_lines_len, 2)}%"
+        ret += sp_string
     
     ret = None if ret == "" else ret
     return ret
@@ -545,7 +551,9 @@ if __name__ == "__main__":
                 cli(user_input, standalone_mode=False)
             except Exception as e:
                 print(e)
-            if ("game" not in user_input) and ("continue" not in user_input): print()
+            if ("game" not in user_input) and \
+                ("continue" not in user_input) and \
+                ("restart" not in user_input): print()
             
 
         elif gm.game_state == True and show_cmd == False:
@@ -596,12 +604,6 @@ if __name__ == "__main__":
 ############################# TODO:
 #   Add learning "mode"
 #
-#   Add a reload function that does what restart but
-#   loads from the file insted
-#
-#   show_position and show_score settings got mixed up, fix em and implement
-#       the one that is not currenlty working yet
-#
 #   implement history
 #       implement the simple graph
 #
@@ -610,6 +612,8 @@ if __name__ == "__main__":
 #       repair the saving mechanisms we broke when redoing some code
 #       make the game savable no matter whats happening
 #
-#   add a no_cls option
+#   re-clean the code when the features are done
 #
-#   re-clean the code when we finish doing all the features
+#   move the click related things into a separete py file and
+#   pass the context, and relevant variables correctly then
+#   delete the global variables.
