@@ -64,6 +64,8 @@ def side_random_handle(side: SideChoice):
 DEFAULT_GAME_SETTINGS = {
     # General
     "only_once": True,
+    "batch_mode": False,
+    "batch_size": 5,
     "random_line": False,
     "from_side": SideChoice.RANDOM.value,
     # Typing mode specific
@@ -91,7 +93,6 @@ GAME_DATA = {
     "time_length": 0,
     "mistake_count": 0,
     "current_line": 0,
-    "repeating_lines": [],
     "remaining_lines": [],
     "settings": settings
 }
@@ -259,7 +260,6 @@ class GameEngine:
         gd["time_length"] = self.time_length
         gd["mistake_count"] = self.mistake_count
         gd["current_line"] = self.current_line
-        #gd["repeating_lines"] = self.repeating_lines # acts like a whitelist
         gd["remaining_lines"] = self.remaining_lines
         gd["settings"] = self.settings
         return gd
@@ -609,7 +609,7 @@ if __name__ == "__main__":
 #
 #   implement standard saving
 #       game history and saves files apear to not create themselves
-#       repair the saving mechanisms we broke when redoing some code
+#       repair the saving mechanisms i broke when redoing some code
 #       make the game savable no matter whats happening
 #
 #   re-clean the code when the features are done
