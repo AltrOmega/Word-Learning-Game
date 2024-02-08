@@ -89,8 +89,6 @@ settings = init_default(DEFAULT_SETTINGS_PATH, DEFAULT_GAME_SETTINGS)
 
 
 GAME_DATA = {
-    "begin_date_and_time": 0,
-    "time_length": 0,
     "mistake_count": 0,
     "current_line": 0,
     "remaining_lines": [],
@@ -239,11 +237,6 @@ def load_files_on_dir(directory: str = "\\Saves", whitelist: list = [],
 
 class GameEngine:
     def __init__(self, game_data: dict):
-        if game_data["begin_date_and_time"] == 0:
-            self.begin_date_and_time = datetime.now()
-        else: self.begin_date_and_time = datetime.fromisoformat(game_data["begin_date_and_time"])
-        
-        self.time_length: float = game_data["time_length"]
         self.mistake_count: int = game_data["mistake_count"]
         self.current_line: int = game_data["current_line"]
         self.remaining_lines: List[Line] = game_data["remaining_lines"]
@@ -256,8 +249,6 @@ class GameEngine:
 
     def extract_game_data(self) -> dict:
         gd = get_default_game_data()
-        gd["begin_date_and_time"] = self.begin_date_and_time.isoformat()
-        gd["time_length"] = self.time_length
         gd["mistake_count"] = self.mistake_count
         gd["current_line"] = self.current_line
         gd["remaining_lines"] = self.remaining_lines
@@ -334,7 +325,6 @@ class GameMaster:
         default_game_data = get_default_game_data()
         if settings != None:
             default_game_data["settings"] = settings
-        #can we perhaps funcionize those parts of load and new game?
         default_game_data["remaining_lines"] = lines
         ge = self.new_game_from_data(default_game_data)
         self.game_state = ge.len_check()
@@ -372,18 +362,6 @@ class GameMaster:
 
 
 def get_score_percent(mistake_count: int, total_len: int, round_to: int = None) -> float:
-    """
-    Calculate the score as a percentage.
-    
-    Parameters:
-    - mistake_count (int): The number of mistakes made.
-    - total_len (int): The total number of items.
-    - round_to (int, optional): The number of decimal places to round the result to.
-    Defaults to None.
-    
-    Returns:
-    - float: The score as a percentage.
-    """
     if mistake_count < 0 or total_len < 0:
         raise ValueError("Invalid input values")
     
