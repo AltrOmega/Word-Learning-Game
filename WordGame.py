@@ -7,6 +7,8 @@ from random import choice, shuffle
 from typing import List
 import json
 
+game_loop_supress_error = True
+
 DEFAULT_SETTINGS_PATH = "settings.json"
 
 DEFAULT_GAME_HISTORY_PATH = "game_history.json"
@@ -92,7 +94,7 @@ GAME_DATA = {
     "mistake_count": 0,
     "current_line": 0,
     "remaining_lines": [],
-    "settings": settings
+    "settings": settings    # TODO: Make settings completly independent of GAME_DATA
 }
 
 
@@ -243,17 +245,24 @@ class GameEngine:
         self.original_lines_len = len(self.remaining_lines)
         self.settings = game_data["settings"]
 
-    def shuffle_with_check(self):
-        if self.settings["random_line"] == True:
-            shuffle(self.remaining_lines)
+    def extract_self_from_game_data(self, game_data: dict):
+        self.mistake_count: int = game_data["mistake_count"]
+        self.current_line: int = game_data["current_line"]
+        self.remaining_lines: List[Line] = game_data["remaining_lines"]
+        self.original_lines_len = len(self.remaining_lines)
+        self.settings = game_data["settings"]
 
-    def extract_game_data(self) -> dict:
+    def extract_game_data_from_self(self) -> dict:
         gd = get_default_game_data()
         gd["mistake_count"] = self.mistake_count
         gd["current_line"] = self.current_line
         gd["remaining_lines"] = self.remaining_lines
         gd["settings"] = self.settings
         return gd
+
+    def shuffle_with_check(self):
+        if self.settings["random_line"] == True:
+            shuffle(self.remaining_lines)
     
     def len_check(self):
         if len(self.remaining_lines) <= 0:
@@ -309,32 +318,65 @@ game_history = load_game_data_list(DEFAULT_GAME_HISTORY_PATH)
 
 ############################# Game Master
 
+def divide_into_batches(lines: List[Line], batch_size: int) -> List[List[Line]]:
+    batches = []
+    for i in range(0, len(lines), batch_size):
+        batches.append(lines[i:i + batch_size])
+    return batches
 
 class GameMaster:
     def __init__(self, game_saves_path=DEFAULT_GAME_SAVES_PATH):
-        self.game_data_list = load_game_data_list(game_saves_path)
+        self.past_game_data_list = load_game_data_list(game_saves_path)
         self.game_id = None
+        self.game_data_batch_list = []
+        self.batch_in_use = None
         self.game_engine: GameEngine
         self.game_state = False
 
     def new_game_from_data(self, game_data: dict):
-        ge = self.game_engine = GameEngine(game_data)
-        return ge
+        if game_data["settings"]["batch_mode"] == True:
+            self.game_data_batch_list = \
+            divide_into_batches(game_data["remaining_lines"],
+                                game_data["settings"]["batch_size"])
+        else:
+            self.game_data_batch_list = [game_data["remaining_lines"]]
+        self.batch_in_use = 0
+        game_data["remaining_lines"] = self.game_data_batch_list[0]
+        self.game_engine = GameEngine(game_data)
+        return self.game_engine
 
     def new_game(self, lines: List[Line] = [], settings = None):
-        default_game_data = get_default_game_data()
+        game_data = get_default_game_data()
         if settings != None:
-            default_game_data["settings"] = settings
-        default_game_data["remaining_lines"] = lines
-        ge = self.new_game_from_data(default_game_data)
-        self.game_state = ge.len_check()
-        ge.shuffle_with_check()
-        return ge
+            game_data["settings"] = settings
+        game_data["remaining_lines"] = lines
+        self.new_game_from_data(game_data)
+        self.game_state = self.game_engine.len_check()
+        self.game_engine.shuffle_with_check()
+        return self.game_engine
+    
+    def progress_game(self, user_input):
+        if self.game_engine.settings["typing_mode"] == False:
+            partial_game_state = self.game_engine.progress_game_simple_mode(user_input)
+        else:
+            partial_game_state = self.game_engine.progress_game_typing_mode(user_input)
+
+
+
+        # use next batch
+        if not partial_game_state:
+            gd = self.game_engine.extract_game_data_from_self()
+            self.batch_in_use += 1
+            gd["remaining_lines"] = self.game_data_batch_list[self.batch_in_use]
+            self.game_engine.extract_self_from_game_data(gd)
+
+        full_game_state = len(self.game_data_batch_list) > self.batch_in_use
+        self.game_state = full_game_state or partial_game_state
 
 
     def load_game_with_id(self, id: int):
-        if len(self.game_data_list) <= id+2:    #Error here on this check for sure
-            ge = self.new_game_from_data(self.game_data_list[id])
+        if len(self.past_game_data_list) <= id+2:    #Error here on this check for sure
+            ge = self.new_game_from_data(self.past_game_data_list[id])
             self.game_state = ge.len_check()
             ge.shuffle_with_check()
             self.game_id = id
@@ -348,14 +390,14 @@ class GameMaster:
             self.commit_game_on_id(self.game_id)
 
     def commit_game_on_id(self, id: int):
-        self.game_data_list[id] = self.game_engine.extract_game_data()
+        self.past_game_data_list[id] = self.game_engine.extract_game_data_from_self()
 
     def commit_game_into_data_list(self):
-        self.game_data_list.append(self.game_engine.extract_game_data())
+        self.past_game_data_list.append(self.game_engine.extract_game_data_from_self())
 
     def save_game_data_list(self, file_path: str):
         self.commit_game_auto()
-        save_game_data_list(self.game_data_list, file_path)
+        save_game_data_list(self.past_game_data_list, file_path)
 
 
 ############################# Other
@@ -525,8 +567,11 @@ if __name__ == "__main__":
                 user_input = user_input[4:] + " --help"
             user_input = user_input.split()
             if settings["no_cls"] == False: system("cls") 
-            try:
+            if game_loop_supress_error:
                 cli(user_input, standalone_mode=False)
+            try:
+                if not game_loop_supress_error:
+                    cli(user_input, standalone_mode=False)
             except Exception as e:
                 print(e)
             if ("game" not in user_input) and \
@@ -563,8 +608,6 @@ if __name__ == "__main__":
                     inp = inp.replace(":cmd", "")
                     if settings["no_cls"] == False: system("cls")
 
-                gm.game_state = gen.progress_game_simple_mode(inp)
-
             else:   # typing mode == True
                 print(gen.get_curent_line().side_as_string(side_show, False)
                       + settings["split"], end = "")
@@ -574,13 +617,22 @@ if __name__ == "__main__":
                 if cmd_ == ":cmd":
                     show_cmd = True
                     if settings["no_cls"] == False: system("cls")
-                gm.game_state = gen.progress_game_typing_mode(inp)
 
+            gm.progress_game(inp)
             if settings["no_cls"] == False: system("cls")
             
 
 ############################# TODO:
-#   Add learning "mode"
+#   add shufling options for individual batches
+#   and the whole file separetly
+#
+#   fix game info, add game info class?
+#
+#   instead of typing_mode use a dict of modes
+#
+#   make settings and data separate and implement them as classes
+#
+#   implement game stats class and dict for GameEngine
 #
 #   implement history
 #       implement the simple graph
@@ -590,6 +642,9 @@ if __name__ == "__main__":
 #       repair the saving mechanisms i broke when redoing some code
 #       make the game savable no matter whats happening
 #
+#   implement proper error handling not just a supress
+#   finish hinting where needed and add docstring
+#   
 #   re-clean the code when the features are done
 #
 #   move the click related things into a separete py file and
