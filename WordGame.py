@@ -68,7 +68,8 @@ DEFAULT_GAME_SETTINGS = {
     "only_once": True,
     "batch_mode": False,
     "batch_size": 5,
-    "random_line": False,
+    "random_line_pre_batch": False,
+    "random_line_post_batch": False,
     "from_side": SideChoice.RANDOM.value,
     # Typing mode specific
     "typing_mode": False,
@@ -261,7 +262,7 @@ class GameEngine:
         return gd
 
     def shuffle_with_check(self):
-        if self.settings["random_line"] == True:
+        if self.settings["random_line_post_batch"] == True:
             shuffle(self.remaining_lines)
     
     def len_check(self):
@@ -334,9 +335,12 @@ class GameMaster:
         self.game_state = False
 
     def new_game_from_data(self, game_data: dict):
+        gdrl = game_data["remaining_lines"] 
+        if game_data["settings"]["random_line_pre_batch"]:
+            shuffle(gdrl)
         if game_data["settings"]["batch_mode"] == True:
             self.game_data_batch_list = \
-            divide_into_batches(game_data["remaining_lines"],
+            divide_into_batches(gdrl,
                                 game_data["settings"]["batch_size"])
         else:
             self.game_data_batch_list = [game_data["remaining_lines"]]
@@ -623,9 +627,6 @@ if __name__ == "__main__":
             
 
 ############################# TODO:
-#   add shufling options for individual batches
-#   and the whole file separetly
-#
 #   fix game info, add game info class?
 #
 #   instead of typing_mode use a dict of modes
