@@ -7,6 +7,7 @@ from random import choice, shuffle
 from typing import List
 import json
 
+# TODO: Add proper error handling instead of supressing
 game_loop_supress_error = True
 
 DEFAULT_SETTINGS_PATH = "settings.json"
@@ -452,6 +453,7 @@ def start_game(folder_path:str, whitelist:list, blacklist:list):
 
 if __name__ == "__main__":
     import click
+    import shlex
 
     @click.group()
     def cli():
@@ -569,7 +571,7 @@ if __name__ == "__main__":
             user_input: str = input("Enter command: ")
             if user_input.startswith("help"):
                 user_input = user_input[4:] + " --help"
-            user_input = user_input.split()
+            user_input = shlex.split(user_input)
             if settings["no_cls"] == False: system("cls") 
             if game_loop_supress_error:
                 cli(user_input, standalone_mode=False)
