@@ -370,10 +370,12 @@ class GameMaster:
 
         # use next batch
         if not partial_game_state:
-            gd = self.game_engine.extract_game_data_from_self()
+            #gd = self.game_engine.extract_game_data_from_self()
             self.batch_in_use += 1
-            gd["remaining_lines"] = self.game_data_batch_list[self.batch_in_use]
-            self.game_engine.extract_self_from_game_data(gd)
+            self.game_engine.remaining_lines = self.game_data_batch_list[self.batch_in_use]
+            self.game_engine.original_lines_len = len(self.game_data_batch_list[self.batch_in_use])
+            self.game_engine.current_line = 0
+            #self.game_engine.extract_self_from_game_data(gd)
 
         full_game_state = len(self.game_data_batch_list) > self.batch_in_use
         self.game_state = full_game_state or partial_game_state
@@ -427,9 +429,12 @@ def get_info():
     ss = settings["show_score"]
     sp = settings["show_position"]
     smc = settings["show_mistake_count"]
+
     if sp == True:
         adjust = gen.mistake_count if gen.settings["only_once"] == False else 0
-        ret += f"""{gen.current_line}/{gen.original_lines_len+adjust}"""
+        ret += f"""{(gen.current_line-adjust)%gen.original_lines_len+1}/{gen.original_lines_len}"""
+        if len(gm.game_data_batch_list) > 1:
+            ret += f"+{gm.batch_in_use+1}/{len(gm.game_data_batch_list)}"
     if smc == True:
         if sp: ret += " - "
         ret += f"{gen.mistake_count}"
